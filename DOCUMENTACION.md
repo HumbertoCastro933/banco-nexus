@@ -25,15 +25,16 @@ Almacena los diferentes productos financieros vinculados a los usuarios.
 * `moneda`: `String` – Divisa de la cuenta (fijada de manera estándar en "MXN").
 * `clienteCURP`: `String` – Referencia directa al campo `curp` de la colección `clientes` (Llave foránea natural).
 
-### 1.3 Colección: `transacciones`
-Registra el historial exhaustivo de movimientos económicos y transferencias interbancarias directas.
+### 1.3 Colección: `transacciones` (Actualizada Etapa 2)
+Registra el historial exhaustivo de movimientos económicos y transferencias interbancarias directas, preparado para concurrencia distribuida.
 * `_id`: `ObjectId` – Identificador único del movimiento.
 * `cuentaId`: `ObjectId` – Referencia al `_id` de la cuenta origen que ejecuta la operación (Llave foránea).
 * `cuentaDestinoId`: `ObjectId` *(Opcional)* – Referencia al `_id` de la cuenta destino (utilizado de manera exclusiva para operaciones de tipo 'transferencia').
 * `tipo`: `String` – Naturaleza del movimiento realizado ('depósito', 'retiro' o 'transferencia').
 * `monto`: `Number / Double` – Volumen económico de la transacción.
-* `fecha`: `Date` – Registro temporal exacto (Timestamp) en el que se efectuó la operación.
+* `fecha`: `Date` – Registro temporal exacto (Timestamp / ISODate) en el que se efectuó la operación. Fundamental para resolver conflictos de concurrencia y ordenar el historial cronológicamente.
 * `descripcion`: `String` – Nota textual automatizada sobre el concepto del movimiento.
+* `sucursal`: `String` – **[NUEVO ETAPA 2]** Identificador de la sucursal de origen de la transacción (ej. 'Sede Central', 'CDMX', 'GDL', 'Web'). Permite el rastreo distribuido de las operaciones concurrentes que ingresan al sistema.
 
 ---
 
@@ -69,4 +70,4 @@ Durante el ciclo de desarrollo e integración de los componentes en el nodo loca
 
 * **Incidencia DevOps 03: Incompatibilidad de Enlazado de Plataforma en Frontend (`Cannot find native binding` en Vite).**
   * *Diagnóstico:* Al levantar la capa de presentación en React, las versiones más recientes del andamiaje de construcción (Vite v6) arrojaban una ruptura de compatibilidad nativa en los archivos binarios al detectar un entorno de ejecución Node.js versión 20.17.0 (el cual se encuentra por debajo del requerimiento mínimo de dicha versión de la herramienta).
-  * *Solución:* Se ejecutó una limpieza profunda eliminando el árbol corrupto de dependencias (`node_modules`) y los bloqueos de paquetes (`package-lock.json`), forzando una instalación hacia versiones compatibles de alta estabilidad mediante el comando `npm install vite@5 @vitejs/plugin-react@4 --save-dev`, logrando compilar la interfaz de usuario en el puerto local sin degradar la versión del motor de Node de la máquina.
+  * *Solución:* Se ejecutó una limpieza profunda eliminando el árbol corrupto de dependencias (`node_modules`) y los bloqueos de paquetes (`package-lock.json`), forzando una instalación hacia versiones compatibles de alta estabilidad mediante el comando `npm install vite@5 @vitejs/plugin-react@4 --save-dev`, logrando compilar la interfaz de usuario en el puerto local sin degradar la versión del motor de Node de la máquina.¿
