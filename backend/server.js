@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -66,6 +67,104 @@ async function iniciarServidor() {
         res.json(respuesta);
       } catch (error) {
         console.error('Error al obtener cuenta:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+      }
+    });
+
+    // --------------------------------------------------
+    // Endpoint: POST /api/deposito
+    // Realiza un depósito en la cuenta especificada
+    // --------------------------------------------------
+    app.post('/api/deposito', async (req, res) => {
+      try {
+        const { numeroCuenta, cantidad } = req.body;
+        const sucursal = req.body.sucursal || 'Sucursal Web';
+
+        // Validaciones básicas
+        if (!numeroCuenta || cantidad === undefined) {
+          return res.status(400).json({ error: 'Faltan numeroCuenta o cantidad' });
+        }
+
+        const monto = Number(cantidad);
+        if (isNaN(monto) || monto <= 0) {
+          return res.status(400).json({ error: 'La cantidad debe ser un número positivo' });
+        }
+
+        const cuenta = await db.collection('cuentas').findOne({ numeroCuenta });
+        if (!cuenta) {
+          return res.status(404).json({ error: 'Cuenta no encontrada' });
+        }
+
+        // Actualizar saldo con $inc (sumar)
+        await db.collection('cuentas').updateOne(
+          { _id: cuenta._id },
+          { $inc: { saldo: monto } }
+        );
+
+        // Insertar transacción
+        await db.collection('transacciones').insertOne({
+          cuentaId: cuenta._id,
+          tipo: 'depósito',
+          monto,
+          fecha: new Date(),
+          descripcion: `Depósito en ${sucursal}`,
+          sucursal
+        });
+
+        res.json({ mensaje: 'Depósito realizado con éxito' });
+      } catch (error) {
+        console.error('Error en depósito:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+      }
+    });
+
+    // --------------------------------------------------
+    // Endpoint: POST /api/retiro
+    // Realiza un retiro de la cuenta especificada
+    // --------------------------------------------------
+    app.post('/api/retiro', async (req, res) => {
+      try {
+        const { numeroCuenta, cantidad } = req.body;
+        const sucursal = req.body.sucursal || 'Sucursal Web';
+
+        if (!numeroCuenta || cantidad === undefined) {
+          return res.status(400).json({ error: 'Faltan numeroCuenta o cantidad' });
+        }
+
+        const monto = Number(cantidad);
+        if (isNaN(monto) || monto <= 0) {
+          return res.status(400).json({ error: 'La cantidad debe ser un número positivo' });
+        }
+
+        const cuenta = await db.collection('cuentas').findOne({ numeroCuenta });
+        if (!cuenta) {
+          return res.status(404).json({ error: 'Cuenta no encontrada' });
+        }
+
+        // Validar fondos suficientes
+        if (cuenta.saldo < monto) {
+          return res.status(400).json({ error: 'Fondos insuficientes' });
+        }
+
+        // Actualizar saldo con $inc (restar)
+        await db.collection('cuentas').updateOne(
+          { _id: cuenta._id },
+          { $inc: { saldo: -monto } }
+        );
+
+        // Insertar transacción
+        await db.collection('transacciones').insertOne({
+          cuentaId: cuenta._id,
+          tipo: 'retiro',
+          monto,
+          fecha: new Date(),
+          descripcion: `Retiro en ${sucursal}`,
+          sucursal
+        });
+
+        res.json({ mensaje: 'Retiro realizado con éxito' });
+      } catch (error) {
+        console.error('Error en retiro:', error);
         res.status(500).json({ error: 'Error interno del servidor' });
       }
     });
