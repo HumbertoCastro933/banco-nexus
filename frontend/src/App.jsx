@@ -1,3 +1,4 @@
+// App.jsx
 import { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -7,18 +8,16 @@ function App() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
-  const manejarConsulta = async (e) => {
-    e.preventDefault();
-    const cuenta = numeroCuenta.trim();
-    if (!cuenta) {
-      setError('Ingresa un número de cuenta.');
-      return;
-    }
+  // Estados para la sección de operaciones (Etapa 2)
+  const [cantidad, setCantidad] = useState('');
+  const [sucursal, setSucursal] = useState('Web');
+  const [operando, setOperando] = useState(false);
 
+  // Función reutilizable para consultar una cuenta por número
+  const consultarCuenta = async (cuenta) => {
     setCargando(true);
     setError('');
     setDatosCuenta(null);
-
     try {
       const respuesta = await fetch(`http://localhost:3000/api/cuenta/${cuenta}`);
       if (!respuesta.ok) {
@@ -34,30 +33,85 @@ function App() {
     }
   };
 
+  const manejarConsulta = (e) => {
+    e.preventDefault();
+    const cuenta = numeroCuenta.trim();
+    if (!cuenta) {
+      setError('Ingresa un número de cuenta.');
+      return;
+    }
+    consultarCuenta(cuenta);
+  };
+
+  // ------------------- Operaciones Etapa 2 -------------------
+  const manejarDeposito = async () => {
+    const monto = parseFloat(cantidad);
+    if (isNaN(monto) || monto <= 0) {
+      alert('Ingresa una cantidad válida.');
+      return;
+    }
+    setOperando(true);
+    try {
+      const res = await fetch('http://localhost:3000/api/deposito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numeroCuenta, cantidad: monto, sucursal })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error al depositar');
+        return;
+      }
+      alert('Depósito exitoso');
+      setCantidad('');
+      // Refrescar los datos de la cuenta
+      consultarCuenta(numeroCuenta);
+    } catch (err) {
+      alert('Error de conexión');
+    } finally {
+      setOperando(false);
+    }
+  };
+
+  const manejarRetiro = async () => {
+    const monto = parseFloat(cantidad);
+    if (isNaN(monto) || monto <= 0) {
+      alert('Ingresa una cantidad válida.');
+      return;
+    }
+    setOperando(true);
+    try {
+      const res = await fetch('http://localhost:3000/api/retiro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numeroCuenta, cantidad: monto, sucursal })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Error al retirar');
+        return;
+      }
+      alert('Retiro exitoso');
+      setCantidad('');
+      consultarCuenta(numeroCuenta);
+    } catch (err) {
+      alert('Error de conexión');
+    } finally {
+      setOperando(false);
+    }
+  };
+  // ----------------------------------------------------------
+
   // Función para calcular la evolución del saldo a partir de las transacciones
   const calcularEvolucionSaldo = (saldoActual, transacciones) => {
     if (!transacciones || transacciones.length === 0) return [];
 
-    // Ordenar transacciones por fecha ascendente (vienen descendentes del backend)
-    const ordenadas = [...transacciones].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-
-    // Reconstruir el saldo hacia atrás para obtener el saldo inicial antes de la primera transacción
-    let saldo = saldoActual;
-    // Recorremos desde la más reciente a la más antigua para deshacer los movimientos
-    for (let i = transacciones.length - 1; i >= 0; i--) {
-      const t = transacciones[i]; // La más reciente en el índice mayor si orden descendente original, pero tenemos orden ascendente ahora.
-      // Nota: transacciones originales vienen en orden descendente. Así que iteramos sobre el array original (no ordenado) o sobre el ordenado.
-      // Mejor usar el array original en orden descendente para deshacer desde la más reciente a la más antigua.
-    }
-    // Estrategia más clara: tomar las transacciones originales (orden descendente) y deshacer una a una.
     const transOriginales = [...transacciones]; // ya están descendentes
     const puntos = [];
     let saldoActualIterator = saldoActual;
-    // Creamos un punto para el momento actual (último movimiento)
     puntos.push({ fecha: new Date(), saldo: saldoActualIterator });
     for (const t of transOriginales) {
       const fecha = new Date(t.fecha);
-      // Deshacer el efecto de la transacción para obtener el saldo anterior
       if (t.tipo === 'depósito') {
         saldoActualIterator -= t.monto;
       } else if (t.tipo === 'retiro' || t.tipo === 'transferencia') {
@@ -65,12 +119,10 @@ function App() {
       }
       puntos.push({ fecha, saldo: saldoActualIterator });
     }
-    // Invertir para que quede en orden cronológico
     puntos.reverse();
     return puntos;
   };
 
-  // Preparar datos para la gráfica si hay datos de cuenta
   const datosGrafica = datosCuenta
     ? calcularEvolucionSaldo(datosCuenta.saldo, datosCuenta.transacciones)
     : [];
@@ -124,6 +176,55 @@ function App() {
                 <p className="text-2xl font-bold text-blue-700">
                   ${datosCuenta.saldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                 </p>
+              </div>
+            </div>
+
+            {/* NUEVA SECCIÓN: Operaciones (Etapa 2) */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-700 mb-4">Operaciones</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Cantidad</label>
+                  <input
+                    type="number"
+                    value={cantidad}
+                    onChange={(e) => setCantidad(e.target.value)}
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Sucursal</label>
+                  <select
+                    value={sucursal}
+                    onChange={(e) => setSucursal(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white"
+                  >
+                    <option value="Sede Central">Sede Central</option>
+                    <option value="CDMX">CDMX</option>
+                    <option value="GDL">GDL</option>
+                    <option value="MTY">MTY</option>
+                    <option value="Web">Web</option>
+                  </select>
+                </div>
+                <div className="flex gap-2 sm:col-span-2">
+                  <button
+                    onClick={manejarDeposito}
+                    disabled={operando}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {operando ? 'Procesando...' : 'Depositar'}
+                  </button>
+                  <button
+                    onClick={manejarRetiro}
+                    disabled={operando}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {operando ? 'Procesando...' : 'Retirar'}
+                  </button>
+                </div>
               </div>
             </div>
 
