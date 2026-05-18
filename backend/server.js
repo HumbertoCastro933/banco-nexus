@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
@@ -120,7 +119,7 @@ async function iniciarServidor() {
 
     // --------------------------------------------------
     // Endpoint: POST /api/retiro
-    // Realiza un retiro de la cuenta especificada
+    // Realiza un retiro atómico para evitar condiciones de carrera
     // --------------------------------------------------
     app.post('/api/retiro', async (req, res) => {
       try {
@@ -136,25 +135,28 @@ async function iniciarServidor() {
           return res.status(400).json({ error: 'La cantidad debe ser un número positivo' });
         }
 
-        const cuenta = await db.collection('cuentas').findOne({ numeroCuenta });
-        if (!cuenta) {
-          return res.status(404).json({ error: 'Cuenta no encontrada' });
-        }
-
-        // Validar fondos suficientes
-        if (cuenta.saldo < monto) {
-          return res.status(400).json({ error: 'Fondos insuficientes' });
-        }
-
-        // Actualizar saldo con $inc (restar)
-        await db.collection('cuentas').updateOne(
-          { _id: cuenta._id },
+        // Operación atómica: actualizar solo si saldo >= monto
+        const resultado = await db.collection('cuentas').updateOne(
+          { numeroCuenta, saldo: { $gte: monto } },
           { $inc: { saldo: -monto } }
         );
 
+        // Si no se modificó ningún documento => fondos insuficientes o cuenta no encontrada
+        if (resultado.modifiedCount === 0) {
+          // Verificar si la cuenta existe para dar el mensaje adecuado
+          const existeCuenta = await db.collection('cuentas').findOne({ numeroCuenta });
+          if (!existeCuenta) {
+            return res.status(404).json({ error: 'Cuenta no encontrada' });
+          }
+          return res.status(400).json({ error: 'Fondos insuficientes' });
+        }
+
+        // Si se modificó, el retiro fue exitoso. Obtenemos el _id de la cuenta
+        const cuentaActualizada = await db.collection('cuentas').findOne({ numeroCuenta });
+
         // Insertar transacción
         await db.collection('transacciones').insertOne({
-          cuentaId: cuenta._id,
+          cuentaId: cuentaActualizada._id,
           tipo: 'retiro',
           monto,
           fecha: new Date(),
