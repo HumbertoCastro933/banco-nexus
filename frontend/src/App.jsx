@@ -2,6 +2,18 @@
 import { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+// Función auxiliar para realizar fetch con timeout (5 segundos)
+async function fetchConTimeout(url, options = {}, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function App() {
   const [numeroCuenta, setNumeroCuenta] = useState('');
   const [datosCuenta, setDatosCuenta] = useState(null);
@@ -43,7 +55,7 @@ function App() {
     consultarCuenta(cuenta);
   };
 
-  // ------------------- Operaciones Etapa 2 -------------------
+  // ------------------- Operaciones Etapa 3 (con tolerancia a fallos) -------------------
   const manejarDeposito = async () => {
     const monto = parseFloat(cantidad);
     if (isNaN(monto) || monto <= 0) {
@@ -52,7 +64,7 @@ function App() {
     }
     setOperando(true);
     try {
-      const res = await fetch('http://localhost:3000/api/deposito', {
+      const res = await fetchConTimeout('http://localhost:3000/api/deposito', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numeroCuenta, cantidad: monto, sucursal })
@@ -64,10 +76,13 @@ function App() {
       }
       alert('Depósito exitoso');
       setCantidad('');
-      // Refrescar los datos de la cuenta
       consultarCuenta(numeroCuenta);
     } catch (err) {
-      alert('Error de conexión');
+      if (err.name === 'AbortError' || (err instanceof TypeError && err.message === 'Failed to fetch')) {
+        alert('Error de conexión o latencia detectada por caída del nodo primario. Reintentando o verifique el sistema.');
+      } else {
+        alert('Error de conexión');
+      }
     } finally {
       setOperando(false);
     }
@@ -81,7 +96,7 @@ function App() {
     }
     setOperando(true);
     try {
-      const res = await fetch('http://localhost:3000/api/retiro', {
+      const res = await fetchConTimeout('http://localhost:3000/api/retiro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numeroCuenta, cantidad: monto, sucursal })
@@ -95,7 +110,11 @@ function App() {
       setCantidad('');
       consultarCuenta(numeroCuenta);
     } catch (err) {
-      alert('Error de conexión');
+      if (err.name === 'AbortError' || (err instanceof TypeError && err.message === 'Failed to fetch')) {
+        alert('Error de conexión o latencia detectada por caída del nodo primario. Reintentando o verifique el sistema.');
+      } else {
+        alert('Error de conexión');
+      }
     } finally {
       setOperando(false);
     }
