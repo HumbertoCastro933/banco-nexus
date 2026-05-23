@@ -120,13 +120,14 @@ function generarCliente() {
 // SCRIPT PRINCIPAL
 // -------------------------------------------------------------------
 async function main() {
-  const url = 'mongodb://localhost:27017';
+  // URI actualizada para conectar al Replica Set rsBanco
+  const url = 'mongodb://localhost:27017,localhost:27018,localhost:27019/banco_nexus?replicaSet=rsBanco';
   const client = new MongoClient(url);
 
   try {
-    // Conexión al servidor
+    // Conexión al servidor del Replica Set
     await client.connect();
-    console.log('Conectado a MongoDB');
+    console.log('Conectado a MongoDB (Replica Set rsBanco)');
 
     const db = client.db('banco_nexus');
 
@@ -215,7 +216,7 @@ async function main() {
     const resultadoTransacciones = await db.collection('transacciones').insertMany(transacciones);
     console.log(`Insertadas ${resultadoTransacciones.insertedCount} transacciones.`);
 
-    console.log('Base de datos "banco_nexus" inicializada correctamente.');
+    console.log('Base de datos "banco_nexus" inicializada correctamente en el Replica Set.');
 
   } catch (error) {
     console.error('Error durante la inicialización:', error);

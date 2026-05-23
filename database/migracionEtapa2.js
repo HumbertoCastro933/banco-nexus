@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 async function ejecutarMigracion() {
-  const uri = 'mongodb://localhost:27017';
+  const uri = 'mongodb://localhost:27017,localhost:27018,localhost:27019/banco_nexus?replicaSet=rsBanco';
   const client = new MongoClient(uri);
 
   try {
