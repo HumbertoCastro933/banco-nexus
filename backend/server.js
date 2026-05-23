@@ -1,10 +1,12 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 
 const app = express();
 const PORT = 3000;
-const MONGO_URI = 'mongodb://localhost:27017';
+// URI del Replica Set con 3 nodos y nombre del replica set "rsBanco"
+const MONGO_URI = 'mongodb://localhost:27017,localhost:27018,localhost:27019/banco_nexus?replicaSet=rsBanco';
 const DB_NAME = 'banco_nexus';
 
 // Middlewares
@@ -19,7 +21,7 @@ async function iniciarServidor() {
   const client = new MongoClient(MONGO_URI);
   try {
     await client.connect();
-    console.log('Conectado a MongoDB');
+    console.log('Conectado a MongoDB (Replica Set rsBanco)');
     db = client.db(DB_NAME);
 
     // --------------------------------------------------
